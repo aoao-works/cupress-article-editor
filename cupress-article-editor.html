@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>中央大学新聞 記事エディタ</title>
+<style>
+  :root{
+    --accent:#7a1f1f;
+    --ink:#1f1f1f;
+    --muted:#6b6b6b;
+    --line:#e3e1db;
+    --bg:#f6f5f2;
+    --card:#ffffff;
+    --sans:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--bg);}
+  /* ---- top bar ---- */
+  .topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;
+    gap:12px;flex-wrap:wrap;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line);}
+  .brand{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
+  .brand .tag{font-size:11px;color:#fff;background:var(--accent);padding:2px 8px;border-radius:4px;font-weight:600;letter-spacing:.04em}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  button{font-family:inherit;cursor:pointer}
+  .btn{font-size:13px;padding:8px 12px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+  .btn:hover{background:#f1efe9}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .btn.primary:hover{background:#641818}
+  .btn.ghost{background:transparent}
+  /* ---- mobile view tabs ---- */
+  .viewtabs{display:none;gap:0;border-bottom:1px solid var(--line);background:#fff}
+  .viewtabs button{flex:1;padding:11px;border:0;background:transparent;font-size:14px;color:var(--muted);border-bottom:2px solid transparent}
+  .viewtabs button.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+  /* ---- layout ---- */
+  .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0;align-items:start}
+  .pane{height:calc(100vh - 53px);overflow:auto}
+  .editor{padding:18px 16px 80px;background:var(--bg);border-right:1px solid var(--line)}
+  .preview{padding:24px 16px 80px;background:#eceae5}
+  /* ---- editor blocks ---- */
+  .group{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+  .group > h3{margin:0 0 10px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:.02em}
+  .field{margin-bottom:10px}
+  .field:last-child{margin-bottom:0}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .field input[type=text],.field input[type=date],.field textarea{
+    width:100%;font-family:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);
+    border-radius:7px;background:#fff;color:var(--ink);resize:none;line-height:1.6}
+  .field input:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hint{font-size:11px;color:#9a988f;margin-top:4px}
+  .blocks-title{display:flex;align-items:center;justify-content:space-between;margin:18px 2px 10px}
+  .blocks-title span{font-size:13px;color:var(--muted);font-weight:600}
+  .block{position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 12px 12px;margin-bottom:12px}
+  .block .bhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .block .btype{font-size:11px;font-weight:700;color:var(--accent);background:#f7ecec;padding:3px 8px;border-radius:5px;letter-spacing:.03em}
+  .block .bctrl{display:flex;gap:4px}
+  .ic{width:30px;height:28px;border:1px solid var(--line);background:#fff;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
+  .ic:hover{background:#f1efe9;color:var(--ink)}
+  .ic.del:hover{background:#fbeaea;color:var(--accent);border-color:#e9c6c6}
+  .addbar{display:flex;gap:8px;flex-wrap:wrap;background:#fff;border:1px dashed #cfcdc6;border-radius:10px;padding:10px}
+  .addbar button{font-size:13px;padding:8px 12px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink);display:flex;align-items:center;gap:6px}
+  .addbar button:hover{background:#f7ecec;border-color:#e2c9c9;color:var(--accent)}
+  .imgpick{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .imgpick .thumb{width:64px;height:48px;border-radius:6px;background:#efeee9;border:1px solid var(--line);object-fit:cover;flex:0 0 auto}
+  .imgpick .filebtn{font-size:13px;padding:8px 11px;border:1px solid var(--line);border-radius:7px;background:#fff}
+  .imgpick .filebtn:hover{background:#f1efe9}
+  /* ================= PREVIEW / EXPORTED ARTICLE ================= */
+  .article{max-width:680px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:6px;padding:40px 38px 30px;line-height:1.9}
+  .article .crumb{display:flex;align-items:center;gap:8px;font-size:12px;color:#8a8a8a;margin-bottom:14px}
+  .article .crumb .cat{background:#efeee9;color:#5a5a5a;font-weight:700;letter-spacing:.06em;padding:3px 9px;border-radius:5px;font-size:11px}
+  .article h1.title{font-size:27px;line-height:1.45;font-weight:700;margin:0 0 14px;color:#1a1a1a;letter-spacing:.01em}
+  .article .byline{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:#8a8a8a;align-items:center}
+  .article .byline .bi{display:inline-flex;align-items:center;gap:5px}
+  .article .byline svg{width:14px;height:14px;stroke:#9a9a9a;fill:none;stroke-width:1.7}
+  .article hr.head{border:0;border-top:1px solid var(--line);margin:16px 0 22px}
+  .article p{font-size:15.5px;color:#2b2b2b;margin:0 0 20px;line-height:1.95}
+  .article h2.sec{font-size:19px;font-weight:700;color:#1a1a1a;margin:30px 0 14px;padding-left:12px;border-left:4px solid var(--accent);line-height:1.5}
+  .article figure{margin:8px 0 22px}
+  .article figure img{width:100%;height:auto;display:block;border-radius:2px}
+  .article figcaption{text-align:center;font-size:13px;color:#8a8a8a;margin-top:8px}
+  .article hr.div{border:0;border-top:1px solid var(--line);margin:24px 0}
+  .article .sign{text-align:right;font-size:15px;color:#2b2b2b;margin:6px 0 0}
+  .article .foot{display:flex;align-items:center;justify-content:space-between;margin-top:28px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:#8a8a8a;flex-wrap:wrap;gap:10px}
+  .article .tags{display:flex;gap:12px;flex-wrap:wrap}
+  .article .tags a{color:#7a7a7a;text-decoration:none}
+  .article .share{display:flex;align-items:center;gap:12px}
+  .article .share svg{width:16px;height:16px;stroke:#8a8a8a;fill:none;stroke-width:1.7}
+  .empty-hint{max-width:680px;margin:0 auto 14px;text-align:center;font-size:12px;color:#9a988f}
+  @media(max-width:900px){
+    .wrap{grid-template-columns:1fr}
+    .viewtabs{display:flex}
+    .editor{border-right:0}
+    .pane{height:auto;overflow:visible}
+    .wrap[data-view=edit] .preview{display:none}
+    .wrap[data-view=preview] .editor{display:none}
+  }
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1f1f1f;color:#fff;font-size:13px;padding:10px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="tag">中央大学新聞</span> 記事エディタ</div>
+  <div class="actions">
+    <button class="btn ghost" onclick="loadSample()">サンプルを読み込む</button>
+    <button class="btn" onclick="saveDraft()">下書きを保存</button>
+    <button class="btn" onclick="copyMarkdown()">Markdownでコピー</button>
+    <button class="btn primary" onclick="exportHTML()">HTMLで保存して公開</button>
+  </div>
+</div>
+
+<div class="viewtabs">
+  <button id="tab-edit" class="on" onclick="setView('edit')">編集</button>
+  <button id="tab-preview" onclick="setView('preview')">プレビュー</button>
+</div>
+
+<div class="wrap" id="wrap" data-view="edit">
+  <!-- ============ EDITOR ============ -->
+  <div class="pane editor">
+    <div class="group">
+      <h3>記事の基本情報</h3>
+      <div class="row2">
+        <div class="field">
+          <label>カテゴリ（大）</label>
+          <input type="text" id="f-category" placeholder="例：CAMPUS">
+        </div>
+        <div class="field">
+          <label>カテゴリ（小）</label>
+          <input type="text" id="f-subcategory" placeholder="例：サークル探訪">
+        </div>
+      </div>
+      <div class="field">
+        <label>タイトル</label>
+        <input type="text" id="f-title" placeholder="例：3月24日 サークル棟祭 リポート後編">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>執筆者ID</label>
+          <input type="text" id="f-author" placeholder="例：cupress19281">
+        </div>
+        <div class="field">
+          <label>公開日</label>
+          <input type="date" id="f-date">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>署名（記事末尾・任意）</label>
+          <input type="text" id="f-signature" placeholder="例：川上">
+        </div>
+        <div class="field">
+          <label>タグ（スペース区切り）</label>
+          <input type="text" id="f-tags" placeholder="例：サークル棟祭 イベント">
+        </div>
+      </div>
+      <div class="hint">読了時間は本文の文字数から自動で計算されます。</div>
+    </div>
+
+    <div class="blocks-title">
+      <span>本文の中身（上から順に表示されます）</span>
+    </div>
+    <div id="blocks"></div>
+
+    <div class="addbar">
+      <button onclick="addBlock('paragraph')">＋ 本文</button>
+      <button onclick="addBlock('heading')">＋ 見出し</button>
+      <button onclick="addBlock('image')">＋ 写真</button>
+      <button onclick="addBlock('divider')">＋ 区切り線</button>
+    </div>
+  </div>
+
+  <!-- ============ PREVIEW ============ -->
+  <div class="pane preview">
+    <div class="empty-hint">↓ これが完成する記事の見た目です（公開ページと同じ）</div>
+    <article class="article" id="preview"></article>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- icons ---------- */
+const IC = {
+  user:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>',
+  cal:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>',
+  clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  share:'<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8 11l8-5M8 13l8 5"/></svg>',
+  bookmark:'<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>'
+};
+
+/* ---------- state ---------- */
+let state = {
+  category:'', subcategory:'', title:'', author:'', date:'', signature:'', tags:[],
+  blocks:[]
+};
+let uid = 1;
+
+/* ---------- helpers ---------- */
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function nl2br(s){return esc(s).replace(/\n/g,'<br>');}
+function fmtDate(d){
+  if(!d) return '';
+  const p=d.split('-'); if(p.length!==3) return d;
+  return parseInt(p[1])+'月'+parseInt(p[2])+'日';
+}
+function readTime(){
+  let chars=0;
+  if(state.title) chars+=state.title.length;
+  state.blocks.forEach(b=>{ if(b.type==='paragraph'||b.type==='heading') chars+=(b.text||'').length; });
+  return Math.max(1, Math.ceil(chars/500));
+}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
+function setView(v){document.getElementById('wrap').dataset.view=v;
+  document.getElementById('tab-edit').classList.toggle('on',v==='edit');
+  document.getElementById('tab-preview').classList.toggle('on',v==='preview');}
+
+/* ---------- build article HTML (shared by preview + export) ---------- */
+function articleInner(){
+  let h='';
+  // crumb
+  if(state.category||state.subcategory){
+    h+='<div class="crumb">';
+    if(state.category) h+='<span class="cat">'+esc(state.category)+'</span>';
+    if(state.category&&state.subcategory) h+='<span>・</span>';
+    if(state.subcategory) h+='<span>'+esc(state.subcategory)+'</span>';
+    h+='</div>';
+  }
+  h+='<h1 class="title">'+(esc(state.title)||'（タイトル未入力）')+'</h1>';
+  // byline
+  h+='<div class="byline">';
+  if(state.author) h+='<span class="bi">'+IC.user+esc(state.author)+'</span>';
+  if(state.date) h+='<span class="bi">'+IC.cal+fmtDate(state.date)+'</span>';
+  h+='<span class="bi">'+IC.clock+'読了時間: '+readTime()+'分</span>';
+  h+='</div><hr class="head">';
+  // blocks
+  state.blocks.forEach(b=>{
+    if(b.type==='paragraph') h+='<p>'+(nl2br(b.text)||'<span style=\"color:#bbb\">本文…</span>')+'</p>';
+    else if(b.type==='heading') h+='<h2 class="sec">'+(esc(b.text)||'見出し')+'</h2>';
+    else if(b.type==='image'){
+      if(b.src){ h+='<figure><img src="'+b.src+'" alt="">'+(b.caption?'<figcaption>'+esc(b.caption)+'</figcaption>':'')+'</figure>'; }
+      else { h+='<figure><div style="background:#efeee9;border:1px dashed #ccc;border-radius:4px;height:140px;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:13px">写真を選択してください</div></figure>'; }
+    }
+    else if(b.type==='divider') h+='<hr class="div">';
+  });
+  if(state.signature) h+='<p class="sign">（'+esc(state.signature)+'）</p>';
+  // footer
+  h+='<div class="foot"><div class="tags">';
+  state.tags.forEach(t=>{ if(t) h+='<a href="#">#'+esc(t)+'</a>'; });
+  h+='</div><div class="share">Share: '+IC.share+IC.bookmark+'</div></div>';
+  return h;
+}
+function renderPreview(){ document.getElementById('preview').innerHTML=articleInner(); }
+
+/* ---------- editor block rendering ---------- */
+const LABEL={paragraph:'本文',heading:'見出し',image:'写真',divider:'区切り線'};
+function renderBlocks(){
+  const wrap=document.getElementById('blocks');
+  wrap.innerHTML='';
+  state.blocks.forEach((b,i)=>{
+    const el=document.createElement('div');
+    el.className='block';
+    let body='';
+    if(b.type==='paragraph') body='<textarea rows="3" placeholder="本文を入力…">'+esc(b.text||'')+'</textarea>';
+    else if(b.type==='heading') body='<input type="text" placeholder="見出し（例：鼓央）" value="'+esc(b.text||'').replace(/"/g,'&quot;')+'">';
+    else if(b.type==='image') body=
+      '<div class="imgpick">'+
+        '<img class="thumb" src="'+(b.src||'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2248%22></svg>')+'">'+
+        '<button class="filebtn" type="button">画像を選ぶ</button>'+
+      '</div>'+
+      '<input type="text" placeholder="写真のキャプション（任意）" value="'+esc(b.caption||'').replace(/"/g,'&quot;')+'">';
+    else if(b.type==='divider') body='<div style="text-align:center;color:#bbb;font-size:13px;padding:4px 0">──────  区切り線  ──────</div>';
+
+    el.innerHTML=
+      '<div class="bhead"><span class="btype">'+LABEL[b.type]+'</span>'+
+      '<span class="bctrl">'+
+        '<button class="ic" type="button" title="上へ" data-act="up">↑</button>'+
+        '<button class="ic" type="button" title="下へ" data-act="down">↓</button>'+
+        '<button class="ic del" type="button" title="削除" data-act="del">✕</button>'+
+      '</span></div>'+body;
+
+    // controls
+    el.querySelector('[data-act=up]').onclick=()=>move(i,-1);
+    el.querySelector('[data-act=down]').onclick=()=>move(i,1);
+    el.querySelector('[data-act=del]').onclick=()=>{ state.blocks.splice(i,1); renderBlocks(); renderPreview(); };
+
+    // inputs
+    if(b.type==='paragraph'){
+      el.querySelector('textarea').oninput=e=>{ b.text=e.target.value; renderPreview(); };
+    } else if(b.type==='heading'){
+      el.querySelector('input').oninput=e=>{ b.text=e.target.value; renderPreview(); };
+    } else if(b.type==='image'){
+      el.querySelector('.filebtn').onclick=()=>pickImage(b,el);
+      el.querySelector('input').oninput=e=>{ b.caption=e.target.value; renderPreview(); };
+    }
+    wrap.appendChild(el);
+  });
+}
+function move(i,dir){
+  const j=i+dir; if(j<0||j>=state.blocks.length) return;
+  [state.blocks[i],state.blocks[j]]=[state.blocks[j],state.blocks[i]];
+  renderBlocks(); renderPreview();
+}
+function addBlock(type){
+  const b={type,id:uid++};
+  if(type==='paragraph'||type==='heading') b.text='';
+  if(type==='image'){ b.src=''; b.caption=''; }
+  state.blocks.push(b);
+  renderBlocks(); renderPreview();
+  // scroll to new block
+  const wrap=document.getElementById('blocks');
+  wrap.lastChild && wrap.lastChild.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function pickImage(b,el){
+  const inp=document.createElement('input');
+  inp.type='file'; inp.accept='image/*';
+  inp.onchange=()=>{
+    const file=inp.files[0]; if(!file) return;
+    const r=new FileReader();
+    r.onload=()=>{ b.src=r.result; el.querySelector('.thumb').src=r.result; renderPreview(); };
+    r.readAsDataURL(file);
+  };
+  inp.click();
+}
+
+/* ---------- metadata binding ---------- */
+function bindMeta(){
+  const map={'f-category':'category','f-subcategory':'subcategory','f-title':'title','f-author':'author','f-date':'date','f-signature':'signature'};
+  Object.keys(map).forEach(id=>{
+    document.getElementById(id).oninput=e=>{ state[map[id]]=e.target.value; renderPreview(); };
+  });
+  document.getElementById('f-tags').oninput=e=>{
+    state.tags=e.target.value.split(/[\s,、　]+/).filter(Boolean); renderPreview();
+  };
+}
+function fillMetaInputs(){
+  document.getElementById('f-category').value=state.category;
+  document.getElementById('f-subcategory').value=state.subcategory;
+  document.getElementById('f-title').value=state.title;
+  document.getElementById('f-author').value=state.author;
+  document.getElementById('f-date').value=state.date;
+  document.getElementById('f-signature').value=state.signature;
+  document.getElementById('f-tags').value=state.tags.join(' ');
+}
+
+/* ---------- draft save / load ---------- */
+function saveDraft(){
+  try{ localStorage.setItem('cupress_draft',JSON.stringify(state)); toast('下書きを保存しました'); }
+  catch(e){ toast('保存できませんでした（ブラウザ設定をご確認ください）'); }
+}
+function loadDraft(){
+  try{
+    const s=localStorage.getItem('cupress_draft');
+    if(s){ state=JSON.parse(s); fillMetaInputs(); renderBlocks(); renderPreview(); return true; }
+  }catch(e){}
+  return false;
+}
+
+/* ---------- markdown export ---------- */
+function toMarkdown(){
+  let m='# '+state.title+'\n\n';
+  const meta=[]; if(state.category) meta.push(state.category); if(state.subcategory) meta.push(state.subcategory);
+  if(meta.length) m='> '+meta.join(' / ')+'\n\n'+m;
+  state.blocks.forEach(b=>{
+    if(b.type==='paragraph') m+=(b.text||'')+'\n\n';
+    else if(b.type==='heading') m+='## '+(b.text||'')+'\n\n';
+    else if(b.type==='image') m+='![](画像)'+(b.caption?'\n*'+b.caption+'*':'')+'\n\n';
+    else if(b.type==='divider') m+='---\n\n';
+  });
+  if(state.signature) m+='（'+state.signature+'）\n\n';
+  if(state.tags.length) m+=state.tags.map(t=>'#'+t).join(' ')+'\n';
+  return m;
+}
+function copyMarkdown(){
+  const md=toMarkdown();
+  navigator.clipboard.writeText(md).then(()=>toast('Markdownをコピーしました'))
+    .catch(()=>{ prompt('コピーしてください:',md); });
+}
+
+/* ---------- HTML export (publishable) ---------- */
+function exportHTML(){
+  const css=document.querySelector('style').textContent;
+  const articleCSS=css.substring(css.indexOf('/* ================= PREVIEW'));
+  const html=
+'<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">'+
+'<meta name="viewport" content="width=device-width, initial-scale=1">'+
+'<title>'+esc(state.title||'記事')+'</title><style>'+
+'body{margin:0;background:#eceae5;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;padding:30px 14px}'+
+':root{--accent:#7a1f1f;--line:#e3e1db}'+articleCSS+
+'</style></head><body><article class="article">'+articleInner()+'</article></body></html>';
+  const blob=new Blob([html],{type:'text/html'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(state.title||'article').replace(/[\\/:*?"<>|]/g,'_')+'.html';
+  a.click();
+  toast('HTMLを書き出しました');
+}
+
+/* ---------- sample ---------- */
+function loadSample(){
+  state={
+    category:'CAMPUS', subcategory:'サークル探訪',
+    title:'3月24日 サークル棟祭 リポート後編',
+    author:'cupress19281', date:'2026-05-29', signature:'川上',
+    tags:['サークル棟祭','イベント'],
+    blocks:[
+      {type:'paragraph',id:uid++,text:'3月24日、サークル棟にて各サークルが仲を深める「サークル棟祭」というお祭りが執り行われた。本記事では紙面で伝えられなかった当日の様子を2回にわたってレポートする。\n後編の今回は鼓央、民族楽器研究会についてお届けする。'},
+      {type:'heading',id:uid++,text:'鼓央'},
+      {type:'paragraph',id:uid++,text:'15時から行われた企画は和太鼓サークル「鼓央」による太鼓パフォーマンスである。鼓央の魅力はなんといっても綺麗さであろう。動きもピタリと揃っており、威勢のよい声でキレがあり格好良かった。'},
+      {type:'image',id:uid++,src:'',caption:'洗練された動作の一つ一つに圧倒された鼓央の演奏'},
+      {type:'heading',id:uid++,text:'民族楽器研究会'},
+      {type:'paragraph',id:uid++,text:'15時半からは民族楽器研究会による、セッションとオリジナル曲の演奏が披露された。全く異なる種類の楽器を演奏する珍しいサークルである。心地の良い珍しい音色を聴くことができる貴重な機会であった。'},
+      {type:'image',id:uid++,src:'',caption:'珍しくも心地よい音に包まれた民族楽器研究会の演奏'},
+      {type:'divider',id:uid++},
+      {type:'paragraph',id:uid++,text:'当大学のサークルは同じサークル棟で活動しているにも関わらず、交流が少ない現状にある。今回のサークル棟祭のような、サークル同士の交流を深める機会が広がっていってほしいと思う。'}
+    ]
+  };
+  fillMetaInputs(); renderBlocks(); renderPreview();
+  toast('サンプルを読み込みました（写真は「画像を選ぶ」で差し替えできます）');
+}
+
+/* ---------- init ---------- */
+bindMeta();
+if(!loadDraft()){
+  // start with an empty paragraph so the editor isn't blank
+  addBlock('paragraph');
+  document.getElementById('f-date').value=new Date().toISOString().slice(0,10);
+  state.date=document.getElementById('f-date').value;
+  renderPreview();
+}
+</script>
+</body>
+</html>
